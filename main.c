@@ -357,7 +357,7 @@ int main(int argc, char **argv) {
 
 	if (rc != SQLITE_OK) {
 		fprintf(stderr,
-			"No se pudo establecer una conexión con la base de datos: %s",
+			"No se pudo establecer una conexión con la base de datos: %s\n",
 			sqlite3_errmsg(db));
 
 		return EXIT_FAILURE;
