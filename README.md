@@ -1,19 +1,25 @@
 ## trustword
-**Trustword** es un programa muy simple para la firma, el cifrado y el mantenimiento de claves para facilitar y fortalecer una comunicación segura. Se usa internamente (gracias a [libsodium](https://github.com/jedisct1/libsodium)) para el cifrado XSalsa20, y en el caso de la criptografía asimétrica, se complementa con el intercambio de claves X25519. Y Para la firma digital Ed25519ph con SHA512.
+**Trustword** es un programa muy simple para la firma, el cifrado y el mantenimiento de claves para facilitar y fortalecer una comunicación segura. Usa internamente (gracias a [libsodium](https://github.com/jedisct1/libsodium)) para el cifrado XSalsa20, y en el caso de la criptografía asimétrica, se complementa con el intercambio de claves X25519. Y para la firma digital Ed25519ph con SHA512.
 
 ## Dependencias
+* gcc (recomendado) o clang (no probado)
+* cmake
 * openssl
 * libsodium
 * argon2
 * sqlite3
 
-## Compilación
+## Instalación
 
 ```bash
 git clone https://github.com/UltraTesla/trustword.git
 cd trustword
-make && make clean
-./trustword --help
+mkdir build && cd build
+export CC=`which gcc`
+cmake .. # o cmake -DCMAKE_INSTALL_PREFIX=<El prefijo de instalación, p.ej.: /usr>
+sudo make install
+sudo chown <Tu nombre de usuario>:<Tu grupo> ~/.trustword
+trustword --help
 ```
 
 ## Ejemplos
@@ -42,12 +48,12 @@ make && make clean
 
 **Importar una clave pública (sin registro)**:
 ```bash
-./trustword -i [Ruta de la clave]
+./trustword -i [Ruta de la clave] --hash [Huella dactilar]
 ```
 
 **Importar una clave pública (con registro)**:
 ```bash
-./trustword -i [Ruta de la clave] --password [Contraseña]
+./trustword -i [Ruta de la clave] --password [Contraseña] --hash [Huella dactilar]
 ```
 
 **Exportar una clave secreta**:
