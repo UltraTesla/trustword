@@ -29,6 +29,7 @@ static struct option long_options[] = {
 	{ "to-verify",         required_argument, NULL, 'V' },
 	{ "help",              no_argument,       NULL, 'H' },
 	{ "examples",          no_argument,       NULL, 'x' },
+	{ "hash",              required_argument, NULL, 'y' },
 	{  NULL,               0,                 NULL,  0  }
 
 };
