@@ -40,20 +40,26 @@ bool Uflag;
 bool sflag;
 bool vflag;
 bool Vflag;
+bool yflag;
 
-#define MAX_TO_FREE   12
-#define INDEX_TO      0
-#define INDEX_FROM    1
-#define INDEX_CONF    2
-#define INDEX_SQL     3
-#define INDEX_OUT     4
-#define INDEX_IMPORT  5
-#define INDEX_KEY     6
-#define INDEX_PASSWD  7
-#define INDEX_GENERAL 8
-#define INDEX_LINEPTR 9
-#define INDEX_VERIFY  10
-#define INDEX_SIGN    11
+#define MAX_TO_FREE    17
+#define INDEX_TO       0
+#define INDEX_FROM     1
+#define INDEX_CONF     2
+#define INDEX_SQL      3
+#define INDEX_OUT      4
+#define INDEX_IMPORT   5
+#define INDEX_KEY      6
+#define INDEX_PASSWD   7
+#define INDEX_GENERAL  8
+#define INDEX_LINEPTR  9
+#define INDEX_VERIFY   10
+#define INDEX_SIGN     11
+#define INDEX_KEY_HEX  12
+#define INDEX_KEY_PASS 13
+#define INDEX_ENC      14
+#define INDEX_HASH     15
+#define INDEX_IDENTITY 16
 
 void *release[MAX_TO_FREE];
 /* Realmente lo que importa es agregar el puntero al arreglo
@@ -71,6 +77,11 @@ char *opt_general_file;
 char *opt_to_verify;
 char *lineptr;
 unsigned char *key;
+char *key_hex;
+unsigned char *key_pass;
+unsigned char *key_enc;
+char *opt_hash;
+unsigned char *identity_ptr_dec;
 
 #define MAX_FILES_TO_FREE  5
 #define INDEX_FILE_OUT     0
@@ -264,6 +275,16 @@ int main(int argc, char **argv) {
 				}
 				Vflag = true;
 				break;
+
+			case 'y':
+				opt_hash = release[INDEX_HASH] = strdup(optarg);
+				check_for_memory(opt_hash);
+				if (strlen(opt_hash) != HASH32_SIZE_HEX) {
+					fputs("La longitud de la huella dactilar no es correcta.\n", stderr);
+					return EXIT_FAILURE;
+				}
+				yflag = true;
+				break;
 			
 			default:
 				show_error();
@@ -273,15 +294,22 @@ int main(int argc, char **argv) {
 
 	}
 
+	if (!yflag && (iflag || Iflag || uflag || Uflag)) {
+		fputs("Es necesario definir la huella dactilar "
+              "para poder importar una clave.\n", stderr);
+		return EXIT_FAILURE;
+
+	}
+
 	if ((vflag && !Vflag) || (!vflag && Vflag)) {
 		fputs("Es necesario definir el archivo y la firma a verificar.\n", stderr);
-		return EXIT_SUCCESS;
+		return EXIT_FAILURE;
 
 	}
 
 	if (!tflag && (Cflag || Dflag)) {
 		fputs("Es necesario definir el destinatario.\n", stderr);
-		return EXIT_SUCCESS;
+		return EXIT_FAILURE;
 
 	}
 
@@ -335,14 +363,12 @@ int main(int argc, char **argv) {
 	errno = 0;
 	if ((rc = simple_read_config(file_config, init_parser, NULL)) != 0) {
 		if (errno != 0) {
-			perror("simple_read_config");
+			perror("Advertencia de simple_read_config");
 			rc = errno;
 		} else
 			fprintf(stderr,
 				"No se pudo interpretar correctamente el archivo "
 				"de configuración. Código de salida: %d\n", rc);
-
-		return rc;
 
 	}
 
@@ -383,7 +409,7 @@ int main(int argc, char **argv) {
 		fprintf(stderr,
 			"Ocurrió un error ejecutando el archivo SQL inicial: %s\n",
 			errmsg);
-		sqlite3_free(errmsg);;
+		sqlite3_free(errmsg);
 
 		return EXIT_FAILURE;
 
@@ -394,7 +420,10 @@ int main(int argc, char **argv) {
 	else if (dflag)
 		delete_user(db, from_email);
 	else if (eflag || Eflag || zflag || Zflag) {
-		int key_size = get_keysize(key_type, false);
+		unsigned char key_nonce[crypto_secretbox_NONCEBYTES];
+		randombytes_buf(key_nonce, sizeof(key_nonce));
+		int real_key_size = get_keysize(key_type, false);
+		int key_size = crypto_secretbox_MACBYTES+sizeof(key_nonce)+real_key_size;
 
 		key = release[INDEX_KEY] = export_key(db, from_email, key_type);
 
@@ -404,30 +433,49 @@ int main(int argc, char **argv) {
 
 		}
 
+		key += HASH_SIZE;
+		key_pass = release[INDEX_KEY_PASS] = hash_sha3_256(key, real_key_size-HASH_SIZE);
+		key -= HASH_SIZE;
+		key_enc = release[INDEX_ENC] = (unsigned char *)malloc(key_size);
+		memcpy(key_enc, key_nonce, sizeof(key_nonce));
+		key_enc += sizeof(key_nonce);
+		crypto_secretbox_easy(key_enc, key, real_key_size, key_nonce, key_pass);
+		key_enc -= sizeof(key_nonce);
+
 		if (hflag && out_stream == DEFAULT_OUT_STREAM) {
-			char key_hex[key_size*2+1];
-			sodium_bin2hex(key_hex, sizeof(key_hex), key, key_size);
+			key_hex = release[INDEX_KEY_HEX] = (char *)malloc(key_size*2+1);
+			sodium_bin2hex(key_hex, key_size*2+1, key_enc, key_size);
 
 			fprintf(out_stream, "%s\n", str2upper(key_hex, -1));
 
 		} else
-			fwrite(key, sizeof(unsigned char), key_size, out_stream);
+			fwrite(key_enc, sizeof(unsigned char), key_size, out_stream);
 
 	} else if (iflag || Iflag || uflag || Uflag) {
-		unsigned char identity[SIGNKEY_SIZE_HEX_ID];
+		unsigned char identity[SIGNKEY_SIZE_HEX_ID_MAC];
 		unsigned char username[HASH_SIZE];
 		unsigned char bin_buff[sizeof(identity)/2];
 		unsigned char key[SIGNKEY_SIZE_BIN];
 		unsigned char *identity_ptr;
+		unsigned char hash2key[HASH32_SIZE];
+		unsigned char key_nonce[crypto_secretbox_NONCEBYTES];
 		size_t key_size = 0;
 
-		if (!hflag) {
-			key_size = fread(identity, sizeof(unsigned char), get_keysize(key_type, false), import_file);
+		if (sodium_hex2bin(hash2key, sizeof(hash2key), opt_hash, strlen(opt_hash),
+			NULL, NULL, NULL) != 0) {
+			fputs("No se pudo descodificar la huella dactilar.\n", stderr);
+			return EXIT_FAILURE;
 
-			if ((iflag && key_size != PUBLICKEY_SIZE_BIN_ID) ||
-				(Iflag && key_size != SECRETKEY_SIZE_BIN_ID) ||
-				(uflag && key_size != VERIFYKEY_SIZE_BIN_ID) ||
-				(Uflag && key_size != SIGNKEY_SIZE_BIN_ID)) {
+		}
+
+		if (!hflag) {
+			key_size = crypto_secretbox_MACBYTES+sizeof(key_nonce)+get_keysize(key_type, false);
+			key_size = fread(identity, sizeof(unsigned char), key_size, import_file);
+
+			if ((iflag && key_size != PUBLICKEY_SIZE_BIN_ID_MAC) ||
+				(Iflag && key_size != SECRETKEY_SIZE_BIN_ID_MAC) ||
+				(uflag && key_size != VERIFYKEY_SIZE_BIN_ID_MAC) ||
+				(Uflag && key_size != SIGNKEY_SIZE_BIN_ID_MAC)) {
 				fputs("(BIN) Longitud de la clave incorrecta.\n", stderr);
 				return EXIT_FAILURE;
 			} else
@@ -441,23 +489,36 @@ int main(int argc, char **argv) {
 			trim(lineptr);
 			key_size = strlen(lineptr);
 
-			if ((iflag && key_size != PUBLICKEY_SIZE_HEX_ID) ||
-				(Iflag && key_size != SECRETKEY_SIZE_HEX_ID) ||
-				(uflag && key_size != VERIFYKEY_SIZE_HEX_ID) ||
-				(Uflag && key_size != SIGNKEY_SIZE_HEX_ID)) {
+			if ((iflag && key_size != PUBLICKEY_SIZE_HEX_ID_MAC) ||
+				(Iflag && key_size != SECRETKEY_SIZE_HEX_ID_MAC) ||
+				(uflag && key_size != VERIFYKEY_SIZE_HEX_ID_MAC) ||
+				(Uflag && key_size != SIGNKEY_SIZE_HEX_ID_MAC)) {
 				fputs("(HEX) Longitud de la clave incorrecta.\n", stderr);
 				return EXIT_FAILURE;
 			} else
 				identity_ptr = bin_buff;
 
-			if (sodium_hex2bin(bin_buff, sizeof(bin_buff), lineptr, strlen(lineptr),
+			if (sodium_hex2bin(bin_buff, sizeof(bin_buff), lineptr, key_size,
 				NULL, NULL, NULL) != 0) {
 				fputs("Error descodificando el identificador.\n", stderr);
 				return EXIT_FAILURE;
 
 			}
 
+			key_size /= 2;
+
 		}
+
+		memcpy(key_nonce, identity_ptr, sizeof(key_nonce));
+		identity_ptr += sizeof(key_nonce);
+		key_size -= sizeof(key_nonce);
+		identity_ptr_dec = (unsigned char *)malloc(key_size);
+		if (crypto_secretbox_open_easy(identity_ptr_dec, identity_ptr, key_size, key_nonce, hash2key) != 0) {
+			fputs("No se pudo importar la clave. ¡La huella dactilar debe ser la correcta!\n", stderr);
+			return EXIT_FAILURE;
+
+		}
+		identity_ptr = identity_ptr_dec;
 
 		memcpy(username, identity_ptr, sizeof(username));
 		identity_ptr += sizeof(username);
@@ -553,10 +614,12 @@ void check_for_memory(void *ptr) {
 void set_defaults_values() {
 	if (IS_NULL(config.database))
 		config.database = strdup(DEFAULT_DATABASE);
-	else if (IS_NULL(config.default_user))
+	if (IS_NULL(config.default_user))
 		config.default_user = strdup(DEFAULT_USER);
-	else if (IS_NULL(config.sql_file))
+	if (IS_NULL(config.sql_file))
 		config.sql_file = strdup(DEFAULT_SQL_FILE);
+	if (config.block_size <= 0)
+		config.block_size = DEFAULT_BLOCK_SIZE;
 
 }
 
