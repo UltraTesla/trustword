@@ -284,7 +284,7 @@ void generate_keypair(sqlite3 *db, const char *user, const unsigned char *passwd
 	unsigned char publickey[crypto_kx_PUBLICKEYBYTES];
 	unsigned char secretkey[crypto_kx_SECRETKEYBYTES];
 	unsigned char secretkey_enc[SECRETKEY_SIZE_BIN];
-	unsigned char verifykey[crypto_sign_PUBLICKEYBYTES];
+	unsigned char verifykey[VERIFYKEY_SIZE_BIN];
 	unsigned char signkey[crypto_sign_SECRETKEYBYTES];
 	unsigned char signkey_enc[SIGNKEY_SIZE_BIN];
 
@@ -301,6 +301,7 @@ void generate_keypair(sqlite3 *db, const char *user, const unsigned char *passwd
 	if (rc == SQLITE_OK) {
 		crypto_kx_keypair(publickey, secretkey);
 		crypto_sign_keypair(verifykey, signkey);
+		verifykey[VERIFYKEY_SIZE_BIN-1] = randombytes_random();
 		
 		randombytes_buf(sign_nonce, sizeof(sign_nonce));
 		randombytes_buf(skey_nonce, sizeof(skey_nonce));
@@ -444,7 +445,7 @@ unsigned char *export_key(sqlite3 *db, const char *user, int key) {
 		
 		if (!id_content || !digest)
 			fputs("No hay memoria suficiente para poder continuar "
-				  "o ocurrió un error inesperado.\n", stderr);
+				  "u ocurrió un error inesperado.\n", stderr);
 		else {
 			memcpy(id_content, digest, HASH_SIZE);
 			id_content += HASH_SIZE;
@@ -621,8 +622,8 @@ void list_keys(sqlite3 *db, char *username) {
 	char user_hex[HASH_SIZE_HEX+1];
 	char publickey_hex[PUBLICKEY_SIZE_HEX+1], secretkey_hex[SECRETKEY_SIZE_HEX+1];
 	char verifykey_hex[VERIFYKEY_SIZE_HEX+1], signkey_hex[SIGNKEY_SIZE_HEX+1];
-	char hash_publickey_hex[HASH_SIZE_HEX+1], hash_secretkey_hex[HASH_SIZE_HEX+1];
-	char hash_verifykey_hex[HASH_SIZE_HEX+1], hash_signkey_hex[HASH_SIZE_HEX+1];
+	char hash_publickey_hex[HASH32_SIZE_HEX+1], hash_secretkey_hex[HASH32_SIZE_HEX+1];
+	char hash_verifykey_hex[HASH32_SIZE_HEX+1], hash_signkey_hex[HASH32_SIZE_HEX+1];
 
 	sqlite3_stmt *res;
 
@@ -686,7 +687,7 @@ void list_keys(sqlite3 *db, char *username) {
 			publickey = sqlite3_column_blob(res, 2);
 			hash_publickey = hash_sha3_256(publickey, PUBLICKEY_SIZE_BIN);
 			sodium_bin2hex(publickey_hex, sizeof(publickey_hex), publickey, PUBLICKEY_SIZE_BIN);
-			sodium_bin2hex(hash_publickey_hex, sizeof(hash_publickey_hex), hash_publickey, HASH_SIZE);
+			sodium_bin2hex(hash_publickey_hex, sizeof(hash_publickey_hex), hash_publickey, HASH32_SIZE);
 
 			printf("pub    %s\n", str2upper(publickey_hex, -1));
 			printf("           [  SHA3_256::%s  ]\n", str2upper(hash_publickey_hex, -1));
@@ -699,7 +700,7 @@ void list_keys(sqlite3 *db, char *username) {
 			secretkey = sqlite3_column_blob(res, 3);
 			hash_secretkey = hash_sha3_256(secretkey, SECRETKEY_SIZE_BIN);
 			sodium_bin2hex(secretkey_hex, sizeof(secretkey_hex), secretkey, SECRETKEY_SIZE_BIN);
-			sodium_bin2hex(hash_secretkey_hex, sizeof(hash_secretkey_hex), hash_secretkey, HASH_SIZE);
+			sodium_bin2hex(hash_secretkey_hex, sizeof(hash_secretkey_hex), hash_secretkey, HASH32_SIZE);
 
 			printf("sec    %s\n", str2upper(secretkey_hex, -1));
 			printf("           [  SHA3_256::%s  ]\n", str2upper(hash_secretkey_hex, -1));
@@ -712,7 +713,7 @@ void list_keys(sqlite3 *db, char *username) {
 			verifykey = sqlite3_column_blob(res, 4);
 			hash_verifykey = hash_sha3_256(verifykey, VERIFYKEY_SIZE_BIN);
 			sodium_bin2hex(verifykey_hex, sizeof(verifykey_hex), verifykey, VERIFYKEY_SIZE_BIN);
-			sodium_bin2hex(hash_verifykey_hex, sizeof(hash_verifykey_hex), hash_verifykey, HASH_SIZE);
+			sodium_bin2hex(hash_verifykey_hex, sizeof(hash_verifykey_hex), hash_verifykey, HASH32_SIZE);
 
 			printf("vef    %s\n", str2upper(verifykey_hex, -1));
 			printf("           [  SHA3_256::%s  ]\n", str2upper(hash_verifykey_hex, -1));
@@ -726,7 +727,7 @@ void list_keys(sqlite3 *db, char *username) {
 			signkey = sqlite3_column_blob(res, 5);
 			hash_signkey = hash_sha3_256(signkey, SIGNKEY_SIZE_BIN);
 			sodium_bin2hex(signkey_hex, sizeof(signkey_hex), signkey, SIGNKEY_SIZE_BIN);
-			sodium_bin2hex(hash_signkey_hex, sizeof(hash_signkey_hex), hash_signkey, HASH_SIZE);
+			sodium_bin2hex(hash_signkey_hex, sizeof(hash_signkey_hex), hash_signkey, HASH32_SIZE);
 
 			printf("sig    %s\n", str2upper(signkey_hex, -1));
 			printf("           [  SHA3_256::%s  ]\n", str2upper(hash_signkey_hex, -1));
@@ -1002,7 +1003,7 @@ unsigned char *sign(sqlite3 *db, FILE *i, FILE *o, long block_size,
 	unsigned char *buff = (unsigned char *)malloc(sizeof(unsigned char)*block_size);
 	unsigned char *sig = (unsigned char *)malloc(sizeof(unsigned char)*crypto_sign_BYTES);
 	if ((buff == NULL) || (sig == NULL)) {
-		fputs("¡Parece que no hay más memoria o ocurrió un error inesperado!\n", stderr);
+		fputs("¡Parece que no hay más memoria u ocurrió un error inesperado!\n", stderr);
 		multiple_free(5, user_digest, signkey_enc, signkey, buff, sig);
 		return NULL;
 
