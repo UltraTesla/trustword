@@ -7,7 +7,7 @@ void show_error() {
 }
 
 void show_version(void) {
-	puts("trustword-1.0.0 (Parte del proyecto Ultra Tesla) - DtxdF");
+	printf("%s-%s (Parte del proyecto Ultra Tesla) - DtxdF\n", PROJECT_NAME, PROJECT_VER);
 
 }
 
@@ -17,8 +17,8 @@ void show_examples(void) {
 	puts("         *- Eliminar un usuario : ./trustword --delete --user [Nombre de usuario]");
 	puts("     Importación/Exportación de claves:");
 	puts("         *- Exportar una clave pública                : ./trustword -e --user [Nombre de usuario]");
-	puts("         *- Importar una clave pública (sin registro) : ./trustword -i [Ruta de la clave]");
-	puts("         *- Importar una clave pública (con registro) : ./trustword -i [Ruta de la clave] --password [Contraseña]");
+	puts("         *- Importar una clave pública (sin registro) : ./trustword -i [Ruta de la clave] --hash [Huella dactilar]");
+	puts("         *- Importar una clave pública (con registro) : ./trustword -i [Ruta de la clave] --password [Contraseña] --hash [Huella dactilar]");
 	puts("         *- Exportar una clave secreta                : ./trustword -E --user [Nombre de usuario]");
 	puts("         *- Exportar una clave de verificación        : ./trustword -z --user [Nombre de usuario]");
 	puts("         *- Exportar una clave para firmar            : ./trustword -Z --user [Nombre de usuario]");
@@ -92,6 +92,7 @@ void show_help(void) {
 	puts("         -K, --symmetric-decrypt FICHERO    usar el cifrado simétrico para descifrar un archivo");
 	puts("         -p, --password CONTRASEÑA          la contraseña usada por algunas operaciones");
 	puts("         -h, --human                        muestra, en hexadecimal, los resultados de algunas operaciones");
+	puts("             --hash                         la suma de comprobación de la clave");
 	puts("             --examples                     muestra algunos ejemplos para empezar con el pie derecho");
 	puts("             --version                      informe sobre la versión");
 	puts("             --help                         mostrar este mensaje");
