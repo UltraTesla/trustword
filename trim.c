@@ -1,13 +1,13 @@
 #include <string.h>
 #include <ctype.h>
 
-inline void init_counter(int *n) {
+void init_counter(int *n) {
 	if (n != NULL)
 		*n = 0;
 
 }
 
-inline void add_counter(int *n) {
+void add_counter(int *n) {
 	if (n != NULL)
 		*n += 1;
 
