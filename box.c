@@ -330,7 +330,7 @@ void generate_keypair(sqlite3 *db, const char *user, const unsigned char *passwd
 	if (step == SQLITE_DONE)
 		printf("Usuario '%s' agregado con éxito.\n", user);
 	else
-		fprintf(stderr, "No se pudo agregar el usuario '%s': %s\n", sqlite3_errmsg(db));
+		fprintf(stderr, "No se pudo agregar el usuario '%s': %s\n", user, sqlite3_errmsg(db));
 
 	sqlite3_finalize(res);
 	sql = "INSERT INTO credentials(userid, password) SELECT _id, ? FROM users WHERE user = ?";
