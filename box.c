@@ -37,8 +37,14 @@ unsigned char *get_key(sqlite3 *db, const unsigned char *user_digest, int key_ty
 	if (step == SQLITE_ROW) {
 		int key_size = sqlite3_column_bytes(res, 0);
 
-		if ((key_type == BOX_PUBLIC_KEY && key_size != PUBLICKEY_SIZE_BIN) ||
-			(key_type == BOX_SECRET_KEY && key_size != SECRETKEY_SIZE_BIN)) {
+		if (key_size == 0) {
+			fputs("Todavía no se ha importado este tipo de clave.\n", stderr);
+			return NULL;
+
+		}
+
+		if ((key_size != PUBLICKEY_SIZE_BIN && key_size != SECRETKEY_SIZE_BIN) &&
+			(key_size != VERIFYKEY_SIZE_BIN && key_size != SIGNKEY_SIZE_BIN)) {
 			fputs("El tamaño de la clave no es correcto.\n", stderr);
 
 		} else {
@@ -464,13 +470,14 @@ unsigned char *export_key(sqlite3 *db, const char *user, int key) {
 
 }
 
-int import_key(sqlite3 *db, const unsigned char *user, int key,
-			   const unsigned char *key_content, const unsigned char *passwd) {
+int import_key(sqlite3 *db, const unsigned char *user, int key, const unsigned char *key_content,
+               const unsigned char *passwd, bool overwrite) {
 	char *sql;
 	int result = 0;
 	int exists = is_user_exists(db, user, false, TABLE_USERS);
 	sqlite3_stmt *res;
 	int key_size;
+	char user_hex[HASH_SIZE_HEX+1];
 
 	if (exists == -1)
 		return -1;
@@ -478,6 +485,11 @@ int import_key(sqlite3 *db, const unsigned char *user, int key,
 	if (exists != 1 && (key == BOX_SECRET_KEY || key == BOX_SIGN_KEY)) {
 		fputs("Es necesario antes agregar el usuario con su "
 			"par de clave público.\n", stderr);
+		return 0;
+
+	} else if (exists == 1 && !overwrite) {
+		sodium_bin2hex(user_hex, sizeof(user_hex), user, HASH_SIZE);
+		fprintf(stderr, "No se puede importar la clave del usuario '%s' por motivos de seguridad. Debe reintentar con el parámetro '--overwrite'\n", user_hex);
 		return 0;
 
 	}
