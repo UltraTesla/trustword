@@ -41,6 +41,7 @@ bool sflag;
 bool vflag;
 bool Vflag;
 bool yflag;
+bool Yflag, overwrite;
 
 #define MAX_TO_FREE    17
 #define INDEX_TO       0
@@ -285,6 +286,10 @@ int main(int argc, char **argv) {
 				}
 				yflag = true;
 				break;
+
+			case 'Y':
+				overwrite = Yflag = true;
+				break;
 			
 			default:
 				show_error();
@@ -525,7 +530,7 @@ int main(int argc, char **argv) {
 		memcpy(key, identity_ptr, get_keysize(key_type, false)-sizeof(username));
 		identity_ptr -= sizeof(username);
 
-		rc = import_key(db, username, key_type, key, opt_password);
+		rc = import_key(db, username, key_type, key, opt_password, overwrite);
 		if (rc == 1)
 			puts("Clave importada con éxito.");
 		else if (rc == 0)

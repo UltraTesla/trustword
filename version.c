@@ -94,6 +94,7 @@ void show_help(void) {
 	puts("         -h, --human                        muestra, en hexadecimal, los resultados de algunas operaciones");
 	puts("             --hash                         la suma de comprobación de la clave");
 	puts("             --examples                     muestra algunos ejemplos para empezar con el pie derecho");
+	puts("             --overwrite                    sobrescribe una clave de un usuario existente");
 	puts("             --version                      informe sobre la versión");
 	puts("             --help                         mostrar este mensaje");
 

@@ -30,6 +30,7 @@ static struct option long_options[] = {
 	{ "help",              no_argument,       NULL, 'H' },
 	{ "examples",          no_argument,       NULL, 'x' },
 	{ "hash",              required_argument, NULL, 'y' },
+	{ "overwrite",         no_argument,       NULL, 'Y' },
 	{  NULL,               0,                 NULL,  0  }
 
 };
