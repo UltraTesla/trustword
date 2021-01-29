@@ -15,7 +15,7 @@
 git clone https://github.com/UltraTesla/trustword.git
 cd trustword
 chmod +x dependences.sh
-./dependences.sh
+sudo ./dependences.sh
 sudo chown <Tu nombre de usuario>:<Tu grupo> ~/.trustword
 trustword --help
 ```
