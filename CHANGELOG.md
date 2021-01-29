@@ -1,5 +1,15 @@
 # Historial de cambios
 
+## version 1.1.3 (2021-01-29)
+
+### Agregado
+
+* Parámetro '--overwrite' para sobreescribir la clave de un usuario existente
+
+### Arreglado
+
+* La clave a exportar no se verificaba si existía, o si era el tamaño correcto
+
 ## version 1.1.0 (2021-01-25)
 
 ### Agregado
