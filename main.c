@@ -42,8 +42,9 @@ bool vflag;
 bool Vflag;
 bool yflag;
 bool Yflag, overwrite;
+bool Nflag;
 
-#define MAX_TO_FREE    17
+#define MAX_TO_FREE    18
 #define INDEX_TO       0
 #define INDEX_FROM     1
 #define INDEX_CONF     2
@@ -61,6 +62,7 @@ bool Yflag, overwrite;
 #define INDEX_ENC      14
 #define INDEX_HASH     15
 #define INDEX_IDENTITY 16
+#define INDEX_NEWPASS  17
 
 void *release[MAX_TO_FREE];
 /* Realmente lo que importa es agregar el puntero al arreglo
@@ -83,6 +85,7 @@ unsigned char *key_pass;
 unsigned char *key_enc;
 char *opt_hash;
 unsigned char *identity_ptr_dec;
+unsigned char *opt_new_password;
 
 #define MAX_FILES_TO_FREE  5
 #define INDEX_FILE_OUT     0
@@ -237,6 +240,7 @@ int main(int argc, char **argv) {
 			case 'p':
 				pflag = true;
 				opt_password = release[INDEX_PASSWD] = hash_sha3_256(optarg, -1);
+				check_for_memory(opt_password);
 				break;
 
 			case 'h':
@@ -289,6 +293,12 @@ int main(int argc, char **argv) {
 
 			case 'Y':
 				overwrite = Yflag = true;
+				break;
+
+			case 'N':
+				Nflag = true;
+				opt_new_password = release[INDEX_NEWPASS] = hash_sha3_256(optarg, -1);
+				check_for_memory(opt_new_password);
 				break;
 			
 			default:
@@ -530,7 +540,7 @@ int main(int argc, char **argv) {
 		memcpy(key, identity_ptr, get_keysize(key_type, false)-sizeof(username));
 		identity_ptr -= sizeof(username);
 
-		rc = import_key(db, username, key_type, key, opt_password, overwrite);
+		rc = import_key(db, username, key_type, key, opt_password, opt_new_password, overwrite);
 		if (rc == 1)
 			puts("Clave importada con éxito.");
 		else if (rc == 0)

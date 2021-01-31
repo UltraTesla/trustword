@@ -13,8 +13,9 @@ void show_version(void) {
 
 void show_examples(void) {
 	puts("     Administración de usuarios:");
-	puts("         *- Crear un usuario    : ./trustword -g --user [Nombre de usuario] --pasword [Contraseña]");
-	puts("         *- Eliminar un usuario : ./trustword --delete --user [Nombre de usuario]");
+	puts("         *- Crear un usuario         : ./trustword -g --user [Nombre de usuario] --pasword [Contraseña]");
+	puts("         *- Eliminar un usuario      : ./trustword --delete --user [Nombre de usuario]");
+	puts("         *- Actualizar la contraseña : ./trustword -E --user [Nombre de usuario] | ./trustword -I - --hash [Huella dactilar] -p [Contraseña] -N [Nueva contraseña] --overwrite");
 	puts("     Importación/Exportación de claves:");
 	puts("         *- Exportar una clave pública                : ./trustword -e --user [Nombre de usuario]");
 	puts("         *- Importar una clave pública (sin registro) : ./trustword -i [Ruta de la clave] --hash [Huella dactilar]");
@@ -91,6 +92,7 @@ void show_help(void) {
 	puts("         -k, --symmetric FICHERO            usar el cifrado simétrico para cifrar un archivo");
 	puts("         -K, --symmetric-decrypt FICHERO    usar el cifrado simétrico para descifrar un archivo");
 	puts("         -p, --password CONTRASEÑA          la contraseña usada por algunas operaciones");
+	puts("         -N, --new-password CONTRASEÑA      la nueva contraseña, en caso de cambiarla");
 	puts("         -h, --human                        muestra, en hexadecimal, los resultados de algunas operaciones");
 	puts("             --hash                         la suma de comprobación de la clave");
 	puts("             --examples                     muestra algunos ejemplos para empezar con el pie derecho");

@@ -31,8 +31,9 @@ static struct option long_options[] = {
 	{ "examples",          no_argument,       NULL, 'x' },
 	{ "hash",              required_argument, NULL, 'y' },
 	{ "overwrite",         no_argument,       NULL, 'Y' },
+	{ "new-password",      required_argument, NULL, 'N' },
 	{  NULL,               0,                 NULL,  0  }
 
 };
 
-const char *short_opts = "gt:f:c:deo:Ei:I:lp:hk:K:C:D:zZu:u:U:s:v:V:";
+const char *short_opts = "gt:f:c:deo:Ei:I:lp:hk:K:C:D:zZu:u:U:s:v:V:N:";

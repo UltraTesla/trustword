@@ -471,7 +471,7 @@ unsigned char *export_key(sqlite3 *db, const char *user, int key) {
 }
 
 int import_key(sqlite3 *db, const unsigned char *user, int key, const unsigned char *key_content,
-               const unsigned char *passwd, bool overwrite) {
+               const unsigned char *passwd, const unsigned char *new_passwd, bool overwrite) {
 	char *sql;
 	int result = 0;
 	int exists = is_user_exists(db, user, false, TABLE_USERS);
@@ -489,7 +489,8 @@ int import_key(sqlite3 *db, const unsigned char *user, int key, const unsigned c
 
 	} else if (exists == 1 && !overwrite) {
 		sodium_bin2hex(user_hex, sizeof(user_hex), user, HASH_SIZE);
-		fprintf(stderr, "No se puede importar la clave del usuario '%s' por motivos de seguridad. Debe reintentar con el parámetro '--overwrite'\n", user_hex);
+		fprintf(stderr, "No se puede importar la clave del usuario '%s' por motivos de "
+			"seguridad. Debe reintentar con el parámetro '--overwrite'\n", user_hex);
 		return 0;
 
 	}
@@ -562,8 +563,14 @@ int import_key(sqlite3 *db, const unsigned char *user, int key, const unsigned c
 	sqlite3_finalize(res);
 	res = NULL;
 
+	if (exists == 1 && passwd && new_passwd && (key == BOX_SECRET_KEY || key == BOX_SIGN_KEY)) {
+		if (update_key(db, user, passwd, new_passwd) < 0)
+			return -1;
+
+	}
+
 	char *passwd_hash = NULL;
-	if (passwd != NULL && (key != BOX_SECRET_KEY && key != BOX_SIGN_KEY)) {
+	if (new_passwd != NULL) {
 		int userid = get_userid(db, user);
 		if (userid < 0)
 			return -1;
@@ -575,7 +582,7 @@ int import_key(sqlite3 *db, const unsigned char *user, int key, const unsigned c
 
 		rc = sqlite3_prepare_v2(db, sql, -1, &res, NULL);
 		if (rc == SQLITE_OK) {
-			passwd_hash = argon2_mini(passwd);
+			passwd_hash = argon2_mini(new_passwd);
 			if (passwd_hash == NULL)
 				return -1;
 
@@ -1078,5 +1085,116 @@ void verify(sqlite3 *db, FILE *i, long block_size, char *username,
 		puts("FAIL");
 
 	multiple_free(3, buff, user_digest, verifykey);
+
+}
+
+int update_key(sqlite3 *db, unsigned char *user, unsigned char *passwd,
+			   unsigned char *new_passwd) {
+	int result = 0;
+	int dec_size, key_size;
+	int sk_exists = 0, sign_exists = 0;
+	char *sql;
+	sqlite3_stmt *res = NULL;
+	unsigned char *sk_enc, *sk;
+	unsigned char *sign_enc, *signk;
+	unsigned char nonce[crypto_secretbox_NONCEBYTES];
+	unsigned char secretkey_enc[SECRETKEY_SIZE_BIN];
+	unsigned char signkey_enc[SIGNKEY_SIZE_BIN];
+	unsigned char *signkey_enc_aux = signkey_enc;
+	unsigned char *secretkey_enc_aux = secretkey_enc;
+
+	unsigned char sign_nonce[crypto_secretbox_NONCEBYTES],
+				  skey_nonce[crypto_secretbox_NONCEBYTES];
+
+	sk_enc = get_key(db, user, BOX_SECRET_KEY);
+	if (!sk_enc) {
+		return -1;
+
+	}
+
+	sk = decrypt_key(sk_enc, passwd, BOX_SECRET_KEY);
+	if (sk == NULL) {
+		free(sk_enc);
+		return -1;
+
+	} else
+		sk_exists = 1;
+
+	sign_enc = get_key(db, user, BOX_SIGN_KEY);
+	if (!sk_enc) {
+		return -1;
+
+	}
+
+	signk = decrypt_key(sign_enc, passwd, BOX_SIGN_KEY);
+	if (sk == NULL) {
+		free(sign_enc);
+		return -1;
+
+	} else
+		sign_exists = 1;
+
+	if (sk_exists == 1) {
+		randombytes_buf(skey_nonce, sizeof(skey_nonce));
+
+		memcpy(secretkey_enc_aux, skey_nonce, sizeof(skey_nonce));
+		secretkey_enc_aux += sizeof(skey_nonce);
+		crypto_secretbox_easy(secretkey_enc_aux, sk, crypto_kx_SECRETKEYBYTES, skey_nonce, new_passwd);
+		secretkey_enc_aux -= sizeof(skey_nonce);
+
+		if (sqlite3_prepare_v2(db, "UPDATE users SET secretkey = ? WHERE user = ?", -1, &res, NULL) == SQLITE_OK) {
+			sqlite3_bind_blob(res, 1, secretkey_enc_aux, sizeof(secretkey_enc), SQLITE_STATIC);
+			sqlite3_bind_blob(res, 2, user, HASH_SIZE, SQLITE_STATIC);
+
+		}
+
+		if (sqlite3_step(res) != SQLITE_DONE) {
+			fprintf(stderr,
+				"Error ejecutando la consulta SQL para actualizar la clave secreta: %s\n",
+				sqlite3_errmsg(db));
+			result = -1;
+
+		} else
+			puts("Clave secreta actualizada con éxito.");
+
+		sqlite3_finalize(res);
+		res = NULL;
+
+	} else
+		fputs("No se pudo actualizar la clave secreta porque no existe.\n", stderr);
+	
+	if (sign_exists == 1) {
+		randombytes_buf(sign_nonce, sizeof(sign_nonce));
+
+		memcpy(signkey_enc_aux, sign_nonce, sizeof(sign_nonce));
+		signkey_enc_aux += sizeof(sign_nonce);
+		crypto_secretbox_easy(signkey_enc_aux, signk, crypto_sign_SECRETKEYBYTES, sign_nonce, new_passwd);
+		signkey_enc_aux -= sizeof(sign_nonce);
+
+		if (sqlite3_prepare_v2(db, "UPDATE users SET signkey = ? WHERE user = ?", -1, &res, NULL) == SQLITE_OK) {
+			sqlite3_bind_blob(res, 1, signkey_enc_aux, sizeof(signkey_enc), SQLITE_STATIC);
+			sqlite3_bind_blob(res, 2, user, HASH_SIZE, SQLITE_STATIC);
+
+		} else {
+			fputs("Error ejecutando la secuencia SQL para actualizar la clave para firmar.\n", stderr);
+			result = -1;
+
+		}
+
+		if (sqlite3_step(res) != SQLITE_DONE) {
+			fprintf(stderr,
+				"Error ejecutando la consulta SQL para actualizar la clave para firmar: %s\n",
+				sqlite3_errmsg(db));
+			result = -1;
+
+		} else
+			puts("Clave para firmar actualizada con éxito.");
+
+		sqlite3_finalize(res);
+
+	} else
+		fputs("No se pudo actualizar la clave para firmar porque no existe.\n", stderr);
+
+	return result;
 
 }

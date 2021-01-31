@@ -45,7 +45,7 @@
 #	define TABLE_USERS       2
 
 int import_key(sqlite3 *db, const unsigned char *user, int key, const unsigned char *key_content,
-               const unsigned char *passwd, bool overwrite);
+               const unsigned char *passwd, const unsigned char *new_passwd, bool overwrite);
 void delete_user(sqlite3 *db, const char *user);
 void generate_keypair(sqlite3 *db, const char *user, const unsigned char *passwd);
 void list_keys(sqlite3 *db, char *username);
@@ -62,6 +62,8 @@ unsigned char *sign(sqlite3 *db, FILE *i, FILE *o, long block_size,
 					char *username, unsigned char *passwd);
 void verify(sqlite3 *db, FILE *i, long block_size, char *username,
 			unsigned char *sig_data);
+int update_key(sqlite3 *db, unsigned char *user, unsigned char *passwd,
+			   unsigned char *new_passwd);
 
 #	include <stdbool.h>
 

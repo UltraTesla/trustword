@@ -40,6 +40,11 @@ trustword --help
 ./trustword --delete --user [Nombre de usuario]
 ```
 
+**Actualizar la contraseña**:
+```bash
+./trustword -E --user [Nombre de usuario] | ./trustword -I - --hash [Huella dactilar] -p [Contraseña] -N [Nueva contraseña] --overwrite
+```
+
 ### Importación/exportación de claves:
 **Exportar una clave pública**:
 ```bash
