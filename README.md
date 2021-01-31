@@ -14,10 +14,8 @@
 ```bash
 git clone https://github.com/UltraTesla/trustword.git
 cd trustword
-mkdir build && cd build
-export CC=`which gcc`
-cmake .. # o cmake -DCMAKE_INSTALL_PREFIX=<El prefijo de instalación, p.ej.: /usr>
-sudo make install
+chmod +x dependences.sh
+./dependences.sh
 sudo chown <Tu nombre de usuario>:<Tu grupo> ~/.trustword
 trustword --help
 ```
