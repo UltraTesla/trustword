@@ -30,7 +30,7 @@ trustword --help
 ### Administración de usuarios:
 **Crear un usuario**:
 ```bash
-./trustword -g --user [Nombre de usuario] --pasword [Contraseña]
+./trustword -g --user [Nombre de usuario] --password [Contraseña]
 ```
 
 **Eliminar un usuario**:
