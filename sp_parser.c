@@ -70,7 +70,7 @@ char *env2val(char *s) {
 					strcat(replaced, "}");
 
 					new_s_aux = new_s;
-					new_s = replace(new_s, replaced, env_val);
+					new_s = replace(new_s_aux, replaced, env_val);
 					free(new_s_aux);
 					free(replaced);
 

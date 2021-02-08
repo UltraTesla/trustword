@@ -60,7 +60,7 @@ void show_help(void) {
 	puts("");
 	puts("Algunas operaciones que requieren archivos pueden leer la entrada estándar si se usa '-'.");
 	puts("");
-	puts("Operaciones como la importación o exportación se compartan ligeramente diferente cuando la opción ");
+	puts("Operaciones como la importación o exportación se comportan ligeramente diferente cuando la opción ");
 	puts("'-h' está presente, indicando que lo que se leerá está en hexadecimal y se deberá descodificar.");
 	puts("");
 	puts("Si el parámetro '--from' o '--user' no se definen, se usará el usuario por defecto del archivo de ");

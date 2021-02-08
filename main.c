@@ -44,31 +44,6 @@ bool yflag;
 bool Yflag, overwrite;
 bool Nflag;
 
-#define MAX_TO_FREE    18
-#define INDEX_TO       0
-#define INDEX_FROM     1
-#define INDEX_CONF     2
-#define INDEX_SQL      3
-#define INDEX_OUT      4
-#define INDEX_IMPORT   5
-#define INDEX_KEY      6
-#define INDEX_PASSWD   7
-#define INDEX_GENERAL  8
-#define INDEX_LINEPTR  9
-#define INDEX_VERIFY   10
-#define INDEX_SIGN     11
-#define INDEX_KEY_HEX  12
-#define INDEX_KEY_PASS 13
-#define INDEX_ENC      14
-#define INDEX_HASH     15
-#define INDEX_IDENTITY 16
-#define INDEX_NEWPASS  17
-
-void *release[MAX_TO_FREE];
-/* Realmente lo que importa es agregar el puntero al arreglo
- * 'release', pero por simplicidad (aunque requiere de un
- * poco más de código) se usan nombres austeros.
- */
 char *opt_configuration_file;
 char *opt_to;
 char *opt_from;
@@ -87,14 +62,6 @@ char *opt_hash;
 unsigned char *identity_ptr_dec;
 unsigned char *opt_new_password;
 
-#define MAX_FILES_TO_FREE  5
-#define INDEX_FILE_OUT     0
-#define INDEX_FILE_SQL     1
-#define INDEX_FILE_IMPORT  2
-#define INDEX_FILE_GENERAL 3
-#define INDEX_FILE_SIGN    4
-
-FILE *files[MAX_FILES_TO_FREE];
 FILE *out_stream;
 FILE *sql_stream;
 FILE *import_file;
@@ -114,12 +81,26 @@ struct configuration {
 typedef struct configuration configuration;
 configuration config;
 
+#define PTR_FILE 1
+#define PTR_VOID 2
+
+struct ptrNode {
+	void *ptr;
+	int type;
+	struct ptrNode *next;
+
+};
+
+typedef struct ptrNode ptrNode;
+ptrNode *root_node;
+
 int init_parser(const char *key, const char *value, void *conf_dict);
 void set_defaults_values();
 void free_parser();
 void release_function();
 void check_for_memory(void *ptr);
 FILE *fopen_secure(const char *pathname, const char *mode);
+void *insert_pointer(void *ptr, int type);
 static void quit();
 
 int main(int argc, char **argv) {
@@ -162,19 +143,19 @@ int main(int argc, char **argv) {
 
 			case 't':
 				tflag = true;
-				opt_to = release[INDEX_TO] = strdup(optarg);
+				opt_to = insert_pointer(strdup(optarg), PTR_VOID);
 				check_for_memory(opt_to);
 				break;
 
 			case 'f':
 				fflag = true;
-				opt_from = release[INDEX_FROM] = strdup(optarg);
+				opt_from = insert_pointer(strdup(optarg), PTR_VOID);
 				check_for_memory(opt_from);
 				break;
 
 			case 'c':
 				cflag = true;
-				opt_configuration_file = release[INDEX_CONF] = strdup(optarg);
+				opt_configuration_file = insert_pointer(strdup(optarg), PTR_VOID);
 				check_for_memory(opt_configuration_file);
 				break;
 
@@ -204,7 +185,7 @@ int main(int argc, char **argv) {
 
 			case 'o':
 				oflag = true;
-				opt_output_file = release[INDEX_OUT] = strdup(optarg);
+				opt_output_file = insert_pointer(strdup(optarg), PTR_VOID);
 				check_for_memory(opt_output_file);
 				break;
 
@@ -213,7 +194,7 @@ int main(int argc, char **argv) {
 			case 'u':
 			case 'U':
 				if (strcmp(optarg, "-") != 0) {
-					opt_import_file = release[INDEX_IMPORT] = strdup(optarg);
+					opt_import_file = insert_pointer(strdup(optarg), PTR_VOID);
 					check_for_memory(opt_import_file);
 				}
 
@@ -239,7 +220,7 @@ int main(int argc, char **argv) {
 
 			case 'p':
 				pflag = true;
-				opt_password = release[INDEX_PASSWD] = hash_sha3_256(optarg, -1);
+				opt_password = insert_pointer(hash_sha3_256(optarg, -1), PTR_VOID);
 				check_for_memory(opt_password);
 				break;
 
@@ -254,7 +235,7 @@ int main(int argc, char **argv) {
 			case 's':
 			case 'v':
 				if (strcmp(optarg, "-") != 0) {
-					opt_general_file = release[INDEX_GENERAL] = strdup(optarg);
+					opt_general_file = insert_pointer(strdup(optarg), PTR_VOID);
 					check_for_memory(opt_general_file);
 				}
 				
@@ -274,7 +255,7 @@ int main(int argc, char **argv) {
 
 			case 'V':
 				if (strcmp(optarg, "-") != 0) {
-					opt_to_verify = release[INDEX_VERIFY] = strdup(optarg);
+					opt_to_verify = insert_pointer(strdup(optarg), PTR_VOID);
 					check_for_memory(opt_to_verify);
 				
 				}
@@ -282,7 +263,7 @@ int main(int argc, char **argv) {
 				break;
 
 			case 'y':
-				opt_hash = release[INDEX_HASH] = strdup(optarg);
+				opt_hash = insert_pointer(strdup(optarg), PTR_VOID);
 				check_for_memory(opt_hash);
 				if (strlen(opt_hash) != HASH32_SIZE_HEX) {
 					fputs("La longitud de la huella dactilar no es correcta.\n", stderr);
@@ -297,7 +278,7 @@ int main(int argc, char **argv) {
 
 			case 'N':
 				Nflag = true;
-				opt_new_password = release[INDEX_NEWPASS] = hash_sha3_256(optarg, -1);
+				opt_new_password = insert_pointer(hash_sha3_256(optarg, -1), PTR_VOID);
 				check_for_memory(opt_new_password);
 				break;
 			
@@ -361,19 +342,19 @@ int main(int argc, char **argv) {
 
 	general_file = DEFAULT_GENERAL_STREAM;
 	if (opt_general_file != NULL && (vflag || sflag || kflag || Kflag || Cflag || Dflag))
-		general_file = files[INDEX_FILE_GENERAL] = fopen_secure(opt_general_file, "rb");
+		general_file = insert_pointer(fopen_secure(opt_general_file, "rb"), PTR_FILE);
 
 	sign_file = DEFAULT_SIGN_FILE;
 	if (opt_to_verify != NULL && (vflag && Vflag))
-		sign_file = files[INDEX_FILE_SIGN] = fopen_secure(opt_to_verify, "rb");
+		sign_file = insert_pointer(fopen_secure(opt_to_verify, "rb"), PTR_FILE);
 
 	import_file = DEFAULT_IMPORT_STREAM;
 	if (opt_import_file != NULL && (iflag || Iflag || uflag || Uflag))
-		import_file = files[INDEX_FILE_IMPORT] = fopen_secure(opt_import_file, "rb");
+		import_file = insert_pointer(fopen_secure(opt_import_file, "rb"), PTR_FILE);
 
 	out_stream = DEFAULT_OUT_STREAM;
 	if (oflag)
-		out_stream = files[INDEX_FILE_OUT] = fopen_secure(opt_output_file, "wb");
+		out_stream = insert_pointer(fopen_secure(opt_output_file, "wb"), PTR_FILE);
 
 	errno = 0;
 	if ((rc = simple_read_config(file_config, init_parser, NULL)) != 0) {
@@ -405,7 +386,7 @@ int main(int argc, char **argv) {
 
 	}
 
-	sql_stream = files[INDEX_FILE_SQL] = fopen_secure(config.sql_file, "rb");
+	sql_stream = insert_pointer(fopen_secure(config.sql_file, "rb"), PTR_FILE);
 	if (!sql_stream) {
 		perror("Error abriendo el archivo SQL inicial");
 
@@ -414,7 +395,7 @@ int main(int argc, char **argv) {
 	}
 	
 	/* Se ejecuta el fichero SQL inicial  */
-	char *opt_sql_content = release[INDEX_SQL] = read_all(sql_stream, DEFAULT_MAX_SQL_SIZE);
+	opt_sql_content = insert_pointer(read_all(sql_stream, DEFAULT_MAX_SQL_SIZE), PTR_VOID);
 	check_for_memory(opt_sql_content);
 
 	char *errmsg = NULL;
@@ -440,7 +421,7 @@ int main(int argc, char **argv) {
 		int real_key_size = get_keysize(key_type, false);
 		int key_size = crypto_secretbox_MACBYTES+sizeof(key_nonce)+real_key_size;
 
-		key = release[INDEX_KEY] = export_key(db, from_email, key_type);
+		key = insert_pointer(export_key(db, from_email, key_type), PTR_VOID);
 
 		if (!key) {
 			fputs("No se pudo exportar la clave.\n", stderr);
@@ -449,16 +430,16 @@ int main(int argc, char **argv) {
 		}
 
 		key += HASH_SIZE;
-		key_pass = release[INDEX_KEY_PASS] = hash_sha3_256(key, real_key_size-HASH_SIZE);
+		key_pass = insert_pointer(hash_sha3_256(key, real_key_size-HASH_SIZE), PTR_VOID);
 		key -= HASH_SIZE;
-		key_enc = release[INDEX_ENC] = (unsigned char *)malloc(key_size);
+		key_enc = insert_pointer((unsigned char *)malloc(key_size), PTR_VOID);
 		memcpy(key_enc, key_nonce, sizeof(key_nonce));
 		key_enc += sizeof(key_nonce);
 		crypto_secretbox_easy(key_enc, key, real_key_size, key_nonce, key_pass);
 		key_enc -= sizeof(key_nonce);
 
 		if (hflag && out_stream == DEFAULT_OUT_STREAM) {
-			key_hex = release[INDEX_KEY_HEX] = (char *)malloc(key_size*2+1);
+			key_hex = insert_pointer((char *)malloc(key_size*2+1), PTR_VOID);
 			sodium_bin2hex(key_hex, key_size*2+1, key_enc, key_size);
 
 			fprintf(out_stream, "%s\n", str2upper(key_hex, -1));
@@ -499,7 +480,7 @@ int main(int argc, char **argv) {
 		} else {
 			lineptr = NULL;
 			key_size = getline(&lineptr, &key_size, import_file);
-			release[INDEX_LINEPTR] = lineptr;
+			insert_pointer(lineptr, PTR_VOID);
 
 			trim(lineptr);
 			key_size = strlen(lineptr);
@@ -565,8 +546,8 @@ int main(int argc, char **argv) {
 		adecrypt(db, general_file, out_stream, config.block_size,
 				 opt_to, from_email, opt_password);
 	else if (sflag) {
-		unsigned char *sig_data = release[INDEX_SIGN] = sign(db, general_file, out_stream, config.block_size,
-									   from_email, opt_password);
+		unsigned char *sig_data = insert_pointer(sign(db, general_file, out_stream, config.block_size,
+									   from_email, opt_password), PTR_VOID);
 
 		if (sig_data == NULL)
 			return EXIT_FAILURE;
@@ -627,25 +608,40 @@ void check_for_memory(void *ptr) {
 }
 
 void set_defaults_values() {
-	if (IS_NULL(config.database))
-		config.database = strdup(DEFAULT_DATABASE);
-	if (IS_NULL(config.default_user))
-		config.default_user = strdup(DEFAULT_USER);
-	if (IS_NULL(config.sql_file))
-		config.sql_file = strdup(DEFAULT_SQL_FILE);
+	if (IS_NULL(config.database)) {
+		config.database = insert_pointer(strdup(DEFAULT_DATABASE), PTR_VOID);
+		check_for_memory(config.database);
+
+	}
+
+	if (IS_NULL(config.default_user)) {
+		config.default_user = insert_pointer(strdup(DEFAULT_USER), PTR_VOID);
+		check_for_memory(config.default_user);
+
+	}
+
+	if (IS_NULL(config.sql_file)) {
+		config.sql_file = insert_pointer(strdup(DEFAULT_SQL_FILE), PTR_VOID);
+		check_for_memory(config.sql_file);
+
+	}
+
 	if (config.block_size <= 0)
 		config.block_size = DEFAULT_BLOCK_SIZE;
 
 }
 
 int init_parser(const char *key, const char *value, void *conf_dict) {
-	if (IS_EQUAL(key, "database"))
-		config.database = strdup(value);
-	else if (IS_EQUAL(key, "default_user"))
-		config.default_user = strdup(value);
-	else if (IS_EQUAL(key, "sql_file"))
-		config.sql_file = strdup(value);
-	else if (IS_EQUAL(key, "block_size")) {
+	if (IS_EQUAL(key, "database")) {
+		config.database = insert_pointer(strdup(value), PTR_VOID);
+		check_for_memory(config.database);
+	} else if (IS_EQUAL(key, "default_user")) {
+		config.default_user = insert_pointer(strdup(value), PTR_VOID);
+		check_for_memory(config.default_user);
+	} else if (IS_EQUAL(key, "sql_file")) {
+		config.sql_file = insert_pointer(strdup(value), PTR_VOID);
+		check_for_memory(config.sql_file);
+	} else if (IS_EQUAL(key, "block_size")) {
 		char *endptr = NULL;
 		long block_size = strtol(value, &endptr, 10);
 
@@ -663,34 +659,30 @@ int init_parser(const char *key, const char *value, void *conf_dict) {
 
 }
 
-void free_parser() {
-	if (ISN_NULL(config.database))
-		free(config.database);
-
-	if (ISN_NULL(config.default_user))
-		free(config.default_user);
-
-	if (ISN_NULL(config.sql_file))
-		free(config.sql_file);
-
-}
-
 void release_function() {
-	int i;
+	ptrNode *aux = root_node;
+	void *value;
+	while (aux != NULL) {
+		root_node = aux->next;
+		value = aux->ptr;
 
-	for (i = 0; i < MAX_TO_FREE; i++)
-		if (ISN_NULL(release[i]))
-			free(release[i]);
+		if (ISN_NULL(value)) {
+			if (aux->type == PTR_FILE)
+				if (value != stdout && \
+					value != stdin  && \
+					value != stderr)
+					fclose(value);
+			else if (aux->type == PTR_VOID)
+				free(value);
+			else
+				; /* Error */
 
-	for (i = 0; i < MAX_FILES_TO_FREE; i++)
-		if (ISN_NULL(files[i]) && \
-			files[i] != stdout && \
-			files[i] != stdin  && \
-			files[i] != stderr)
-			fclose(files[i]);
+		}
 
-	/* Libera la configuración */
-	free_parser();
+		free(aux);
+		aux = root_node;
+
+	}
 
 	if (ISN_NULL(db))
 		sqlite3_close(db);
@@ -708,6 +700,18 @@ FILE *fopen_secure(const char *pathname, const char *mode) {
 	}
 
 	return f;
+
+}
+
+void *insert_pointer(void *ptr, int type) {
+	ptrNode *new_node = (ptrNode *)malloc(sizeof(ptrNode));
+	check_for_memory(new_node);
+	new_node->ptr = ptr;
+	new_node->type = type;
+	new_node->next = root_node;
+	root_node = new_node;
+
+	return ptr;
 
 }
 
