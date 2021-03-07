@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(trustword VERSION "1.1.3")
+project(trustword VERSION "1.1.4")
 include(GNUInstallDirs)
 # Los prefijos usado por las variables predeterminadas
 set(prefix ${CMAKE_INSTALL_PREFIX})

@@ -412,9 +412,9 @@ int main(int argc, char **argv) {
 	}
 
 	if (gflag)
-		generate_keypair(db, from_email, opt_password);
+		return generate_keypair(db, from_email, opt_password);
 	else if (dflag)
-		delete_user(db, from_email);
+		return delete_user(db, from_email);
 	else if (eflag || Eflag || zflag || Zflag) {
 		unsigned char key_nonce[crypto_secretbox_NONCEBYTES];
 		randombytes_buf(key_nonce, sizeof(key_nonce));
@@ -540,10 +540,10 @@ int main(int argc, char **argv) {
 		decrypt(general_file, out_stream, config.block_size,
 				opt_password);
 	else if (Cflag)
-		aencrypt(db, general_file, out_stream, config.block_size,
+		return aencrypt(db, general_file, out_stream, config.block_size,
 				 opt_to, from_email, opt_password);
 	else if (Dflag)
-		adecrypt(db, general_file, out_stream, config.block_size,
+		return adecrypt(db, general_file, out_stream, config.block_size,
 				 opt_to, from_email, opt_password);
 	else if (sflag) {
 		unsigned char *sig_data = insert_pointer(sign(db, general_file, out_stream, config.block_size,
@@ -589,7 +589,7 @@ int main(int argc, char **argv) {
 		} else
 			memcpy(sig_data, buff, 64);
 
-		verify(db, general_file, config.block_size,
+		return verify(db, general_file, config.block_size,
 			   from_email, sig_data);
 	} else
 		show_help();

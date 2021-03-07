@@ -46,21 +46,21 @@
 
 int import_key(sqlite3 *db, const unsigned char *user, int key, const unsigned char *key_content,
                const unsigned char *passwd, const unsigned char *new_passwd, bool overwrite);
-void delete_user(sqlite3 *db, const char *user);
-void generate_keypair(sqlite3 *db, const char *user, const unsigned char *passwd);
+int delete_user(sqlite3 *db, const char *user);
+int generate_keypair(sqlite3 *db, const char *user, const unsigned char *passwd);
 void list_keys(sqlite3 *db, char *username);
 unsigned char *export_key(sqlite3 *db, const char *user, int key);
 void encrypt(FILE *i, FILE *o, long block_size,
 			 const unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES]);
 void decrypt(FILE *i, FILE *o, long block_size,
 			 const unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES]);
-void aencrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
+int aencrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
 			  char *opt_to, char *opt_from, unsigned char *p);
-void adecrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
+int adecrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
 			  char *opt_to, char *opt_from, unsigned char *p);
 unsigned char *sign(sqlite3 *db, FILE *i, FILE *o, long block_size,
 					char *username, unsigned char *passwd);
-void verify(sqlite3 *db, FILE *i, long block_size, char *username,
+int verify(sqlite3 *db, FILE *i, long block_size, char *username,
 			unsigned char *sig_data);
 int update_key(sqlite3 *db, unsigned char *user, unsigned char *passwd,
 			   unsigned char *new_passwd);

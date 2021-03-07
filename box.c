@@ -275,16 +275,16 @@ int is_user_exists(sqlite3 *db, void *user,
 
 }
 
-void generate_keypair(sqlite3 *db, const char *user, const unsigned char *passwd) {
+int generate_keypair(sqlite3 *db, const char *user, const unsigned char *passwd) {
 	if (is_user_exists(db, user, true, TABLE_USERS) == 1) {
 		_warning_user_exists(1, user);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
 	char *passwd_hash = argon2_mini(passwd);
 	if (passwd_hash == NULL)
-		return;
+		return EXIT_FAILURE;
 
 	unsigned char *user_hash = hash_sha3_224(user, -1);
 	unsigned char publickey[crypto_kx_PUBLICKEYBYTES];
@@ -362,17 +362,19 @@ void generate_keypair(sqlite3 *db, const char *user, const unsigned char *passwd
 	free(user_hash);
 	free(passwd_hash);
 
+	return EXIT_SUCCESS;
+
 } 
 
-void delete_user(sqlite3 *db, const char *user) {
+int delete_user(sqlite3 *db, const char *user) {
 	unsigned char *user_hash = hash_sha3_224(user, -1);
 	if (user_hash == NULL)
-		return;
+		return EXIT_FAILURE;
 	
 	if (is_user_exists(db, user_hash, false, TABLE_USERS) != 1) {
 		_warning_user_exists(0, user);
 		free(user_hash);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
@@ -383,7 +385,7 @@ void delete_user(sqlite3 *db, const char *user) {
 
 	if (userid < 0) {
 		free(user_hash);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
@@ -422,6 +424,8 @@ void delete_user(sqlite3 *db, const char *user) {
 
 	sqlite3_finalize(res);
 	free(user_hash);
+
+	return EXIT_SUCCESS;
 
 }
 
@@ -775,7 +779,7 @@ void list_keys(sqlite3 *db, char *username) {
 
 	if (step != SQLITE_DONE)
 		fprintf(stderr, "Ocurrió un error obteniendo las claves: %s\n",
-			sqlite3_errmsg(db));
+				sqlite3_errmsg(db));
 
 	sqlite3_finalize(res);
 	free(user_digest);
@@ -783,28 +787,28 @@ void list_keys(sqlite3 *db, char *username) {
 }
 
 void encrypt(FILE *i, FILE *o, long block_size,
-			 const unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES]) {
-    unsigned char *buf_in = (unsigned char *)malloc(sizeof(unsigned char)*block_size);
-    unsigned char *buf_out = (unsigned char *)malloc(sizeof(unsigned char)*block_size + crypto_secretstream_xchacha20poly1305_ABYTES);
-    unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
+		const unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES]) {
+	unsigned char *buf_in = (unsigned char *)malloc(sizeof(unsigned char)*block_size);
+	unsigned char *buf_out = (unsigned char *)malloc(sizeof(unsigned char)*block_size + crypto_secretstream_xchacha20poly1305_ABYTES);
+	unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
 
-    crypto_secretstream_xchacha20poly1305_state st;
-	
-    unsigned long long out_len;
-    size_t rlen;
-    int eof;
-    unsigned char tag;
+	crypto_secretstream_xchacha20poly1305_state st;
 
-    crypto_secretstream_xchacha20poly1305_init_push(&st, header, key);
-    fwrite(header, sizeof(unsigned char), sizeof(header), o);
-    do {
-        rlen = fread(buf_in, sizeof(unsigned char), sizeof(unsigned char)*block_size, i);
-        eof = feof(i);
-        tag = eof ? crypto_secretstream_xchacha20poly1305_TAG_FINAL : 0;
-        crypto_secretstream_xchacha20poly1305_push(&st, buf_out, &out_len, buf_in, rlen,
-                                                   NULL, 0, tag);
-        fwrite(buf_out, sizeof(unsigned char), (size_t)out_len, o);
-    } while (!eof);
+	unsigned long long out_len;
+	size_t rlen;
+	int eof;
+	unsigned char tag;
+
+	crypto_secretstream_xchacha20poly1305_init_push(&st, header, key);
+	fwrite(header, sizeof(unsigned char), sizeof(header), o);
+	do {
+		rlen = fread(buf_in, sizeof(unsigned char), sizeof(unsigned char)*block_size, i);
+		eof = feof(i);
+		tag = eof ? crypto_secretstream_xchacha20poly1305_TAG_FINAL : 0;
+		crypto_secretstream_xchacha20poly1305_push(&st, buf_out, &out_len, buf_in, rlen,
+				NULL, 0, tag);
+		fwrite(buf_out, sizeof(unsigned char), (size_t)out_len, o);
+	} while (!eof);
 
 	free(buf_in);
 	free(buf_out);
@@ -812,28 +816,28 @@ void encrypt(FILE *i, FILE *o, long block_size,
 }
 
 void decrypt(FILE *i, FILE *o, long block_size,
-			 const unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES]) {
+		const unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES]) {
 	unsigned char *buf_in = (unsigned char *)malloc(sizeof(unsigned char)*block_size + crypto_secretstream_xchacha20poly1305_ABYTES);
-    unsigned char *buf_out = (unsigned char *)malloc(sizeof(unsigned char)*block_size);
-    unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
+	unsigned char *buf_out = (unsigned char *)malloc(sizeof(unsigned char)*block_size);
+	unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
 
-    crypto_secretstream_xchacha20poly1305_state st;
+	crypto_secretstream_xchacha20poly1305_state st;
 
-    unsigned long long out_len;
-    size_t rlen;
-    int eof;
-    unsigned char  tag;
+	unsigned long long out_len;
+	size_t rlen;
+	int eof;
+	unsigned char  tag;
 
-    fread(header, sizeof(unsigned char), sizeof(header), i);
-    if (crypto_secretstream_xchacha20poly1305_init_pull(&st, header, key) != 0)
+	fread(header, sizeof(unsigned char), sizeof(header), i);
+	if (crypto_secretstream_xchacha20poly1305_init_pull(&st, header, key) != 0)
 		fputs("Encabezado incompleto.\n", stderr);
 	else {
 		do {
 			rlen = fread(buf_in, sizeof(unsigned char),
-						 (sizeof(unsigned char)*block_size + crypto_secretstream_xchacha20poly1305_ABYTES), i);
+					(sizeof(unsigned char)*block_size + crypto_secretstream_xchacha20poly1305_ABYTES), i);
 			eof = feof(i);
 			if (crypto_secretstream_xchacha20poly1305_pull(&st, buf_out, &out_len, &tag,
-														   buf_in, rlen, NULL, 0) != 0) {
+						buf_in, rlen, NULL, 0) != 0) {
 				fputs("¡Pedazo del contenido corrupto!\n", stderr);
 				break;
 			}
@@ -852,26 +856,26 @@ void decrypt(FILE *i, FILE *o, long block_size,
 
 }
 
-void aencrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
-			  char *opt_to, char *opt_from, unsigned char *p) {
+int aencrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
+		char *opt_to, char *opt_from, unsigned char *p) {
 	unsigned char *opt_to_digest = hash_sha3_224(opt_to, -1);;
 	unsigned char *opt_from_digest = hash_sha3_224(opt_from, -1);;
 
 	if (!opt_to_digest || !opt_from_digest) {
 		fputs("¡No se pueden obtener los identificadores de usuarios!\n", stderr);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
 	if (is_user_exists(db, opt_to_digest, false, TABLE_USERS) != 1) {
 		_warning_user_exists(0, opt_to);
-		return;
+		return EXIT_FAILURE;
 
 	}
-	
+
 	if (is_user_exists(db, opt_from_digest, false, TABLE_USERS) != 1) {
 		_warning_user_exists(0, opt_from);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
@@ -881,21 +885,21 @@ void aencrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
 	pk = get_key(db, opt_from_digest, BOX_PUBLIC_KEY);
 	if (!pk) {
 		multiple_free(2, opt_to_digest, opt_from_digest);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
 	dst_pk = get_key(db, opt_to_digest, BOX_PUBLIC_KEY);
 	if (!dst_pk) {
 		multiple_free(3, pk, opt_to_digest, opt_from_digest);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
 	sk_enc = get_key(db, opt_from_digest, BOX_SECRET_KEY);
 	if (!sk_enc) {
 		multiple_free(4, pk, dst_pk, opt_to_digest, opt_from_digest);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
@@ -903,7 +907,7 @@ void aencrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
 	if (sk == NULL) {
 		multiple_free(5, pk, dst_pk, sk_enc,
 			opt_to_digest, opt_from_digest);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
@@ -912,7 +916,7 @@ void aencrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
 		fputs("¡Clave pública del remitente sospechosa!\n", stderr);
 		multiple_free(6, pk, dst_pk, sk_enc, sk,
 			opt_from_digest, opt_to_digest);
-		return;
+		return EXIT_FAILURE;
 	}
 
 	encrypt(i, o, block_size, tx);
@@ -920,28 +924,30 @@ void aencrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
 	multiple_free(6, pk, dst_pk, sk_enc, sk,
 		opt_from_digest, opt_to_digest);
 
+	return EXIT_SUCCESS;
+
 }
 
-void adecrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
+int adecrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
 			  char *opt_to, char *opt_from, unsigned char *p) {
 	unsigned char *opt_to_digest = hash_sha3_224(opt_to, -1);
 	unsigned char *opt_from_digest = hash_sha3_224(opt_from, -1);
 
 	if (!opt_to_digest || !opt_from_digest) {
 		fputs("¡No se pueden obtener los identificadores de usuarios!\n", stderr);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
 	if (is_user_exists(db, opt_to_digest, false, TABLE_USERS) != 1) {
 		_warning_user_exists(0, opt_to);
-		return;
+		return EXIT_FAILURE;
 
 	}
 	
 	if (is_user_exists(db, opt_from_digest, false, TABLE_USERS) != 1) {
 		_warning_user_exists(0, opt_from);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
@@ -951,21 +957,21 @@ void adecrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
 	pk = get_key(db, opt_to_digest, BOX_PUBLIC_KEY);
 	if (!pk) {
 		multiple_free(2, opt_to_digest, opt_from_digest);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
 	dst_pk = get_key(db, opt_from_digest, BOX_PUBLIC_KEY);
 	if (!dst_pk) {
 		multiple_free(3, pk, opt_to_digest, opt_from_digest);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
 	sk_enc = get_key(db, opt_to_digest, BOX_SECRET_KEY);
 	if (!sk_enc) {
 		multiple_free(4, pk, dst_pk, opt_to_digest, opt_from_digest);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
@@ -973,7 +979,7 @@ void adecrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
 	if (sk == NULL) {
 		multiple_free(5, pk, dst_pk, sk_enc,
 			opt_to_digest, opt_from_digest);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
@@ -982,7 +988,7 @@ void adecrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
 		fputs("¡Clave pública del remitente sospechosa!\n", stderr);
 		multiple_free(6, pk, dst_pk, sk_enc, sk,
 			opt_from_digest, opt_to_digest);
-		return;
+		return EXIT_FAILURE;
 	}
 
 	decrypt(i, o, block_size, rx);
@@ -990,6 +996,8 @@ void adecrypt(sqlite3 *db, FILE *i, FILE *o, long block_size,
 	multiple_free(6, pk, dst_pk, sk_enc, sk,
 		opt_from_digest, opt_to_digest);
 	
+	return EXIT_SUCCESS;
+
 }
 
 unsigned char *sign(sqlite3 *db, FILE *i, FILE *o, long block_size,
@@ -1044,30 +1052,30 @@ unsigned char *sign(sqlite3 *db, FILE *i, FILE *o, long block_size,
 
 }
 
-void verify(sqlite3 *db, FILE *i, long block_size, char *username,
+int verify(sqlite3 *db, FILE *i, long block_size, char *username,
 			unsigned char *sig_data) {
 	unsigned char *user_digest = hash_sha3_224(username, -1);
 	if (user_digest == NULL)
-		return;
+		return EXIT_FAILURE;
 
 	if (is_user_exists(db, user_digest, false, TABLE_USERS) != 1) {
 		_warning_user_exists(0, username);
 		free(user_digest);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
 	unsigned char *verifykey = get_key(db, user_digest, BOX_VERIFY_KEY);
 	if (verifykey == NULL) {
 		free(user_digest);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
 	unsigned char *buff = (unsigned char *)malloc(sizeof(unsigned char)*block_size);
 	if (buff == NULL) {
 		multiple_free(2, user_digest, verifykey);
-		return;
+		return EXIT_FAILURE;
 
 	}
 
@@ -1085,6 +1093,8 @@ void verify(sqlite3 *db, FILE *i, long block_size, char *username,
 		puts("FAIL");
 
 	multiple_free(3, buff, user_digest, verifykey);
+
+	return EXIT_SUCCESS;
 
 }
 
