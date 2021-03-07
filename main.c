@@ -526,6 +526,7 @@ int main(int argc, char **argv) {
 			puts("Clave importada con éxito.");
 		else if (rc == 0)
 			fputs("No se pudo importar la clave.\n", stderr);
+			return EXIT_FAILURE;
 		else {
 			fputs("Ocurrió un error al importar la clave.\n", stderr);
 			return EXIT_FAILURE;
