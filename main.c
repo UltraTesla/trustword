@@ -524,10 +524,10 @@ int main(int argc, char **argv) {
 		rc = import_key(db, username, key_type, key, opt_password, opt_new_password, overwrite);
 		if (rc == 1)
 			puts("Clave importada con éxito.");
-		else if (rc == 0)
+		else if (rc == 0) {
 			fputs("No se pudo importar la clave.\n", stderr);
 			return EXIT_FAILURE;
-		else {
+		} else {
 			fputs("Ocurrió un error al importar la clave.\n", stderr);
 			return EXIT_FAILURE;
 		}
